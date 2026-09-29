@@ -30,6 +30,7 @@ fn fast_options() -> DecoderFlags {
 
         zune_use_unsafe: true,
         zune_use_neon:   true,
+        zune_use_simd128: true,
         zune_use_avx:    true,
         zune_use_avx2:   true,
         zune_use_sse2:   true,
@@ -58,6 +59,7 @@ fn cmd_options() -> DecoderFlags {
 
         zune_use_unsafe: true,
         zune_use_neon:   true,
+        zune_use_simd128: true,
         zune_use_avx:    true,
         zune_use_avx2:   true,
         zune_use_sse2:   true,
@@ -106,6 +108,8 @@ pub struct DecoderFlags {
     png_add_alpha_channel:        bool,
     /// Whether we should use neon instructions where possible.
     zune_use_neon:                bool,
+    /// Whether we should use wasm simd128 instructions where possible.
+    zune_use_simd128:             bool,
     /// Whether the png decoder should strip 16 bit to 8 bit
     png_strip_16_bit_to_8_bit:    bool,
     /// Decode all frames for an animated images
@@ -635,6 +639,23 @@ impl DecoderOptions {
         {
             // aarch64 implies neon on a compliant cpu
             // but for real prod should do something better here
+            return true;
+        }
+        // everything failed return false
+        false
+    }
+
+    #[allow(unreachable_code)]
+    pub fn use_simd128(&self) -> bool {
+        let opt = self.flags.zune_use_simd128 | self.flags.zune_use_unsafe;
+        // options says no
+        if !opt {
+            return false;
+        }
+
+        // wasm has no runtime feature detection, the target feature decides
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        {
             return true;
         }
         // everything failed return false

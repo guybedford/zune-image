@@ -43,6 +43,8 @@ use crate::idct::scalar::{idct_int, idct_int_1x1};
 pub mod avx2;
 #[cfg(feature = "neon")]
 pub mod neon;
+#[cfg(feature = "simd128")]
+pub mod wasm32;
 
 pub mod scalar;
 
@@ -71,6 +73,13 @@ pub fn choose_idct_func(options: &DecoderOptions) -> IDCTPtr {
             };
         }
     }
+    #[cfg(all(feature = "simd128", target_arch = "wasm32", target_feature = "simd128"))]
+    {
+        if options.use_simd128() {
+            debug!("Using vector integer IDCT");
+            return wasm32::idct_simd128;
+        }
+    }
     debug!("Using scalar integer IDCT");
     // use generic one
     return idct_int;
@@ -92,6 +101,13 @@ pub fn choose_idct_4x4_func(_options: &DecoderOptions) -> IDCTPtr {
                 // SAFETY: `options.use_avx2()` only returns true if avx2 is supported.
                 unsafe { avx2::idct_avx2_4x4(a,b,c) }
             };
+        }
+    }
+
+    #[cfg(all(feature = "simd128", target_arch = "wasm32", target_feature = "simd128"))]
+    {
+        if _options.use_simd128() {
+            return wasm32::idct_simd128_4x4;
         }
     }
 

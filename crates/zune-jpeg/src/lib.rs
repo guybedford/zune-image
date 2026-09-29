@@ -277,7 +277,10 @@
 )]
 // no_std compatibility
 #![deny(clippy::std_instead_of_alloc, clippy::alloc_instead_of_core)]
-#![cfg_attr(not(any(feature = "x86", feature = "neon")), forbid(unsafe_code))]
+#![cfg_attr(
+    not(any(feature = "x86", feature = "neon", feature = "simd128")),
+    forbid(unsafe_code)
+)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "portable_simd", feature(portable_simd))]
 #![macro_use]
@@ -311,5 +314,6 @@ mod cancel;
 mod unsafe_utils;
 mod unsafe_utils_avx2;
 mod unsafe_utils_neon;
+mod unsafe_utils_wasm32;
 mod upsampler;
 mod worker;

@@ -21,12 +21,13 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
 [features]
 x86 = []
 neon = []
+simd128 = []
 std = ["zune-core/std"]
 # NOTE: portable_simd requires Rust 1.87+
 portable_simd = []
 arith = []
 log = ["zune-core/log"]
-default = ["x86", "neon", "std"]
+default = ["x86", "neon", "simd128", "std"]
 
 
 [dependencies]

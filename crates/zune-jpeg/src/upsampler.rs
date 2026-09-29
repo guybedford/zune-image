@@ -95,6 +95,8 @@ mod neon;
 #[cfg(feature = "portable_simd")]
 mod portable_simd;
 mod scalar;
+#[cfg(feature = "simd128")]
+mod wasm32;
 
 // choose the best possible implementation for this platform
 #[allow(unused_variables)]
@@ -114,6 +116,10 @@ pub fn choose_horizontal_samp_function(options: &DecoderOptions) -> UpSampler {
             // SAFETY: `options.use_neon()` only returns true if neon is supported.
             unsafe { neon::upsample_horizontal_neon(a, b, c, d, e) }
         };
+    }
+    #[cfg(all(feature = "simd128", target_arch = "wasm32", target_feature = "simd128"))]
+    if options.use_simd128() {
+        return wasm32::upsample_horizontal_simd128;
     }
     #[cfg(feature = "portable_simd")]
     return portable_simd::upsample_horizontal_simd;
@@ -138,6 +144,10 @@ pub fn choose_hv_samp_function(options: &DecoderOptions) -> UpSampler {
             unsafe { neon::upsample_hv_neon(a, b, c, d, e) }
         };
     }
+    #[cfg(all(feature = "simd128", target_arch = "wasm32", target_feature = "simd128"))]
+    if options.use_simd128() {
+        return wasm32::upsample_hv_simd128;
+    }
     #[cfg(feature = "portable_simd")]
     return portable_simd::upsample_hv_simd;
     return scalar::upsample_hv;
@@ -160,6 +170,10 @@ pub fn choose_v_samp_function(options: &DecoderOptions) -> UpSampler {
             // SAFETY: `options.use_neon()` only returns true if neon is supported.
             unsafe { neon::upsample_vertical_neon(a, b, c, d, e) }
         };
+    }
+    #[cfg(all(feature = "simd128", target_arch = "wasm32", target_feature = "simd128"))]
+    if options.use_simd128() {
+        return wasm32::upsample_vertical_simd128;
     }
     #[cfg(feature = "portable_simd")]
     return portable_simd::upsample_vertical_simd;
@@ -272,6 +286,26 @@ mod tests {
                     unsafe { neon::upsample_hv_neon(a, b, c, d, e) }
                 },
             );
+        }
+    }
+
+    #[cfg(all(feature = "simd128", target_arch = "wasm32", target_feature = "simd128"))]
+    mod simd128_impl {
+        use super::*;
+
+        #[test]
+        fn simd128_vertical() {
+            _test_vertical(wasm32::upsample_vertical_simd128);
+        }
+
+        #[test]
+        fn simd128_horizontal() {
+            _test_horizontal(wasm32::upsample_horizontal_simd128);
+        }
+
+        #[test]
+        fn simd128_hv() {
+            _test_hv(wasm32::upsample_hv_simd128);
         }
     }
 

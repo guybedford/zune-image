@@ -61,6 +61,7 @@ use crate::decoder::ColorConvert16Ptr;
 mod avx;
 mod neon64;
 mod scalar;
+mod wasm32;
 
 #[allow(unused_variables)]
 pub fn choose_ycbcr_to_rgb_convert_func(
@@ -95,6 +96,22 @@ pub fn choose_ycbcr_to_rgb_convert_func(
                 ColorSpace::RGBA => return Some(ycbcr_to_rgba_neon),
                 ColorSpace::BGR => return Some(ycbcr_to_bgr_neon),
                 ColorSpace::BGRA => return Some(ycbcr_to_bgra_neon),
+                _ => () // fall through to scalar, which has more types
+            }
+        }
+    }
+    #[cfg(all(feature = "simd128", target_arch = "wasm32", target_feature = "simd128"))]
+    {
+        if options.use_simd128() {
+            use crate::color_convert::wasm32::{
+                ycbcr_to_bgr_simd128, ycbcr_to_bgra_simd128, ycbcr_to_rgb_simd128,
+                ycbcr_to_rgba_simd128
+            };
+            match type_need {
+                ColorSpace::RGB => return Some(ycbcr_to_rgb_simd128),
+                ColorSpace::RGBA => return Some(ycbcr_to_rgba_simd128),
+                ColorSpace::BGR => return Some(ycbcr_to_bgr_simd128),
+                ColorSpace::BGRA => return Some(ycbcr_to_bgra_simd128),
                 _ => () // fall through to scalar, which has more types
             }
         }
@@ -259,9 +276,44 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "simd128", target_arch = "wasm32", target_feature = "simd128"))]
+    fn simd128_bgr_and_bgra_match_scalar() {
+        use crate::color_convert::wasm32::{ycbcr_to_bgr_simd128, ycbcr_to_bgra_simd128};
+
+        assert_converter_matches_scalar(
+            ycbcr_to_bgr_simd128,
+            ycbcr_to_rgb_inner_16_scalar::<true>,
+            48,
+            false
+        );
+        assert_converter_matches_scalar(
+            ycbcr_to_bgra_simd128,
+            ycbcr_to_rgba_inner_16_scalar::<true>,
+            64,
+            true
+        );
+
+        let options = DecoderOptions::default();
+        assert!(options.use_simd128());
+        assert_converter_matches_scalar(
+            choose_ycbcr_to_rgb_convert_func(ColorSpace::BGR, &options).unwrap(),
+            ycbcr_to_rgb_inner_16_scalar::<true>,
+            48,
+            false
+        );
+        assert_converter_matches_scalar(
+            choose_ycbcr_to_rgb_convert_func(ColorSpace::BGRA, &options).unwrap(),
+            ycbcr_to_rgba_inner_16_scalar::<true>,
+            64,
+            true
+        );
+    }
+
+    #[test]
     #[cfg(not(any(
         all(feature = "x86", any(target_arch = "x86", target_arch = "x86_64")),
-        all(feature = "neon", target_arch = "aarch64")
+        all(feature = "neon", target_arch = "aarch64"),
+        all(feature = "simd128", target_arch = "wasm32", target_feature = "simd128")
     )))]
     fn no_simd_build_dispatches_bgr_and_bgra_to_scalar() {
         let options = DecoderOptions::default();

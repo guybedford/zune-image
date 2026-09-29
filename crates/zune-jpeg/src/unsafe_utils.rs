@@ -2,3 +2,5 @@
 pub use crate::unsafe_utils_avx2::*;
 #[cfg(all(feature = "neon", target_arch = "aarch64"))]
 pub use crate::unsafe_utils_neon::*;
+#[cfg(all(feature = "simd128", target_arch = "wasm32", target_feature = "simd128"))]
+pub use crate::unsafe_utils_wasm32::*;
