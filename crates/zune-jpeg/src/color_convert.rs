@@ -60,6 +60,8 @@ use crate::decoder::ColorConvert16Ptr;
 
 mod avx;
 mod neon64;
+#[cfg(feature = "portable_simd")]
+mod portable_simd;
 mod scalar;
 
 #[allow(unused_variables)]
@@ -97,6 +99,16 @@ pub fn choose_ycbcr_to_rgb_convert_func(
                 ColorSpace::BGRA => return Some(ycbcr_to_bgra_neon),
                 _ => () // fall through to scalar, which has more types
             }
+        }
+    }
+    #[cfg(feature = "portable_simd")]
+    {
+        match type_need {
+            ColorSpace::RGB => return Some(portable_simd::ycbcr_to_rgb_simd),
+            ColorSpace::RGBA => return Some(portable_simd::ycbcr_to_rgba_simd),
+            ColorSpace::BGR => return Some(portable_simd::ycbcr_to_bgr_simd),
+            ColorSpace::BGRA => return Some(portable_simd::ycbcr_to_bgra_simd),
+            _ => () // fall through to scalar, which has more types
         }
     }
     // when there is no x86 or we haven't returned by here, resort to scalar
@@ -179,14 +191,17 @@ mod tests {
         vector(&y, &cb, &cr, &mut exact, &mut offset);
         assert_eq!(offset, output_size);
 
-        let mut short = vec![SENTINEL; output_size - 1];
-        let mut short_offset = 0;
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            vector(&y, &cb, &cr, &mut short, &mut short_offset);
-        }));
-        assert!(result.is_err());
-        assert_eq!(short_offset, 0);
-        assert!(short.iter().all(|byte| *byte == SENTINEL));
+        #[cfg(panic = "unwind")]
+        {
+            let mut short = vec![SENTINEL; output_size - 1];
+            let mut short_offset = 0;
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                vector(&y, &cb, &cr, &mut short, &mut short_offset);
+            }));
+            assert!(result.is_err());
+            assert_eq!(short_offset, 0);
+            assert!(short.iter().all(|byte| *byte == SENTINEL));
+        }
     }
 
     #[test]
@@ -259,9 +274,27 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "portable_simd")]
+    fn portable_simd_bgr_and_bgra_match_scalar() {
+        assert_converter_matches_scalar(
+            portable_simd::ycbcr_to_bgr_simd,
+            ycbcr_to_rgb_inner_16_scalar::<true>,
+            48,
+            false
+        );
+        assert_converter_matches_scalar(
+            portable_simd::ycbcr_to_bgra_simd,
+            ycbcr_to_rgba_inner_16_scalar::<true>,
+            64,
+            true
+        );
+    }
+
+    #[test]
     #[cfg(not(any(
         all(feature = "x86", any(target_arch = "x86", target_arch = "x86_64")),
-        all(feature = "neon", target_arch = "aarch64")
+        all(feature = "neon", target_arch = "aarch64"),
+        feature = "portable_simd"
     )))]
     fn no_simd_build_dispatches_bgr_and_bgra_to_scalar() {
         let options = DecoderOptions::default();

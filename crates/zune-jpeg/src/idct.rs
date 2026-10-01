@@ -43,11 +43,13 @@ use crate::idct::scalar::{idct_int, idct_int_1x1};
 pub mod avx2;
 #[cfg(feature = "neon")]
 pub mod neon;
+#[cfg(feature = "portable_simd")]
+pub mod portable_simd;
 
 pub mod scalar;
 
 /// Choose an appropriate IDCT function
-#[allow(unused_variables)]
+#[allow(unused_variables, unreachable_code)]
 pub fn choose_idct_func(options: &DecoderOptions) -> IDCTPtr {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[cfg(feature = "x86")]
@@ -71,6 +73,11 @@ pub fn choose_idct_func(options: &DecoderOptions) -> IDCTPtr {
             };
         }
     }
+    #[cfg(feature = "portable_simd")]
+    {
+        debug!("Using portable SIMD integer IDCT");
+        return portable_simd::idct_simd;
+    }
     debug!("Using scalar integer IDCT");
     // use generic one
     return idct_int;
@@ -82,6 +89,7 @@ pub fn choose_idct_func(options: &DecoderOptions) -> IDCTPtr {
 /// coefficients are non-zero. All other entries are zeroed.
 ///
 /// **The callee must uphold that contract on return**
+#[allow(unreachable_code)]
 pub fn choose_idct_4x4_func(_options: &DecoderOptions) -> IDCTPtr {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[cfg(feature = "x86")]
@@ -94,6 +102,9 @@ pub fn choose_idct_4x4_func(_options: &DecoderOptions) -> IDCTPtr {
             };
         }
     }
+
+    #[cfg(feature = "portable_simd")]
+    return portable_simd::idct_simd_4x4;
 
     scalar::idct4x4
 }
